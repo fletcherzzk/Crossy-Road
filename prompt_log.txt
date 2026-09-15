@@ -1,3 +1,8 @@
+Model used: Chatgpt6-astra 
+(Interesting note: 24% of total weekly usage for chatgpt plus is used for this project)
+
+
+
 1 build something in **JavaScript** that mimics Crossy Road as closely as you can, inluding the chunky, blocky, pseudo-3D camera angle. 
 That 2.5D look is a big part of what makes Crossy Road feel like Crossy Road.&#x20;
 

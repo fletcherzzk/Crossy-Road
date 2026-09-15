@@ -14,11 +14,13 @@ Open **index.html** in a modern browser. No installation, server, internet conne
 - **P / Escape:** pause or resume.
 - **Enter / Space:** restart after a run.
 
-Cross roads without touching vehicles. Ride moving logs over water. Flashing red lights warn of an approaching train. Keep moving forward: a visible five-second countdown ends your run at zero. Completing a forward hop resets it to five seconds, even when revisiting a row. Sideways moves, backward hops, blocked moves, and drifting on logs do not reset it. Pausing or leaving the tab freezes the countdown. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
+Cross roads without touching vehicles. Ride moving logs over water. Flashing red lights warn of an approaching train. Landings align to the stud grid on grass and rafts. On a raft, the chicken stays attached to its landing stud while the raft moves. You can travel left or right indefinitely; terrain and hazards load around you.
+
+Keep moving forward: a visible five-second countdown ends your run at zero. Completing a forward hop resets it to five seconds, even when revisiting a row. Sideways moves, backward hops, blocked moves, and drifting on logs do not reset it. Pausing or leaving the tab freezes the countdown. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
 
 ## Publish with GitHub Pages
 
-1. Commit `index.html`, `style.css`, `game.js`, `brick-renderer.js`, `vendor/`, and `.nojekyll` to your repository.
+1. Commit `index.html`, `style.css`, `game.js`, `brick-grid.js`, `brick-renderer.js`, `vendor/`, and `.nojekyll` to your repository.
 2. On GitHub, open **Settings → Pages**.
 3. Under **Build and deployment**, choose **Deploy from a branch**.
 4. Select your branch (usually `main`) and **/ (root)**, then **Save**.
@@ -28,7 +30,9 @@ All asset links are relative, so repository URLs such as `https://YOUR-NAME.gith
 
 ## What's included
 
-- Endless procedural lanes with clear central routes and regular safe banks
+- Endless lanes and sideways terrain streaming, with bounded memory
+- Stud-aligned landings and stable raft riding
+- Spinning car, truck, and train wheels driven by distance traveled
 - Cars and trucks moving 15% faster, with wider, evenly spaced traffic gaps
 - Drifting rafts, railway signals, and passing trains
 - Hopping animation, a view from behind the chicken, depth sorting, shadows, and particle effects
@@ -44,6 +48,7 @@ All asset links are relative, so repository URLs such as `https://YOUR-NAME.gith
 - `index.html` — accessible game interface and menus
 - `style.css` — responsive presentation
 - `game.js` — procedural world, input, countdown, and gameplay
+- `brick-grid.js` — shared stud spacing and standing heights
 - `brick-renderer.js` — original 3D models, materials, lighting, and rendering
 - `vendor/three.min.js` — bundled Three.js 0.160.1 (MIT license in `vendor/LICENSE-three.txt`)
 

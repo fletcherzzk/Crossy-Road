@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const T = THREE;
-  const STUD_PITCH = .25; // Shared by chicken body, terrain, rafts, and vehicles.
+  const STUD_PITCH = BrickGrid.pitch; // Shared by chicken body, terrain, rafts, and vehicles.
   const geometryCache = new Map(), materialCache = new Map(), prefabCache = new Map();
   const P = { green:'#4f9d38',lime:'#74b544',darkGreen:'#267544',brown:'#76452b',tan:'#b4804b',
     white:'#f5f3e9',red:'#c92d25',yellow:'#f7bd19',black:'#202329',glass:'#365c75',silver:'#bec5cd' };
@@ -119,10 +119,22 @@
   function wheel(parts,x,y,z) {
     part(parts,geometry('tire',()=>new T.TorusGeometry(.153,.067,8,20)),P.black,x,y,z,null,'rubber');
     part(parts,geometry('hub',()=>new T.CylinderGeometry(.105,.105,.10,16)),P.silver,x,y,z,[Math.PI/2,0,0],'metal');
-    for(let i=0;i<5;i++) {
+    for(const side of [-1,1])for(let i=0;i<5;i++) {
       const a=i*Math.PI*2/5;
-      part(parts,geometry('hub-hole',()=>new T.CylinderGeometry(.017,.017,.008,8)),P.black,x+Math.cos(a)*.065,y-.058,z+Math.sin(a)*.065,[Math.PI/2,0,0]);
+      part(parts,geometry('hub-hole',()=>new T.CylinderGeometry(.017,.017,.008,8)),P.black,x+Math.cos(a)*.065,y+side*.058,z+Math.sin(a)*.065,[Math.PI/2,0,0]);
     }
+  }
+  const WHEEL_RADIUS=.22;
+  function attachWheels(node,positions) {
+    node.rollingWheels=positions.map(([x,y,z])=>{
+      const rolling=prefab('rolling-wheel',p=>wheel(p,0,0,0));
+      rolling.position.set(x,z,-y);node.add(rolling);return rolling;
+    });
+  }
+  function spinWheels(node,travel) {
+    // Rotate about each axle using distance/radius, independently of recycling.
+    const localTravel=travel*(Math.cos(node.rotation.y)<0?-1:1);
+    for(const rolling of node.rollingWheels||[])rolling.rotation.z=-localTravel/WHEEL_RADIUS;
   }
   function cabin(parts,x,y,z,color) {
     // Both windshields lean along X (the direction the car travels).
@@ -152,7 +164,7 @@
     const c=item.color,w=item.length;
     box(parts,0,0,.18,w-.12,.6,.13,P.black);
     brick(parts,0,0,.31,item.truck?10:7,3,2,c);
-    for(const side of [-1,1]) for(const ax of [-w*.31,w*.31]) wheel(parts,ax,side*.40,.23);
+
     if(item.truck) {
       for(let row=0;row<3;row++) {
         brick(parts,-.375,-.125,.52+row*.3,6,2,3,row%2?P.white:'#ddd9c9');
@@ -183,8 +195,8 @@
   }
   function chicken(parts) {
     for(const side of [-1,1]) {
-      brick(parts,side*.20,.075,.02,1,2,1,P.yellow,.15);
-      box(parts,side*.20,-.01,.12,.10,.13,.16,'#e69916');
+      brick(parts,side*.25,.125,.02,1,2,1,P.yellow);
+      box(parts,side*.25,0,.12,.10,.13,.16,'#e69916');
     }
     brick(parts,0,0,.25,3,3,3,'#e9e8df');
     brick(parts,0,0,.55,3,3,2,P.white);
@@ -221,52 +233,59 @@
       this.width=1;this.height=1;
     }
     clearRows() {for(const row of this.rows.values())this.removeRow(row);this.rows.clear();}
+    disposeChunk(chunk) {
+      chunk.traverse(o=>{if(o.isMesh&&!o.userData.sharedGeometry)o.geometry.dispose();});
+    }
     removeRow(row) {
       this.scene.remove(row.root);
-      // Dynamic prefabs share geometry; only dispose this lane's merged scenery.
-      row.static.traverse(o=>{if(o.isMesh)o.geometry.dispose();});
+      for(const chunk of row.chunks.values())this.disposeChunk(chunk);
     }
-    createRow(lane) {
-      const root=new T.Group(),parts=[],moving=[];
-      const grass=lane.type==='grass',water=lane.type==='water';
+    createChunk(lane,chunk) {
+      const parts=[],span=chunk.end-chunk.start;
+      const grass=lane.type==='grass',water=lane.type==='water',offset=BrickGrid.groundOffset;
       const ground=grass?(lane.y%2?P.green:P.lime):water?'#168cbd':lane.type==='road'?'#535e69':'#99a090';
-      for(let x=-16;x<16;x++) {
-        if(grass) brick(parts,x+.5,0,-.135,4,4,1,ground);
+      // Shift every baseplate by half a stud. Stud centers now include (0,0),
+      // exactly matching the chicken's standing grid and its two feet.
+      for(let x=0;x<span;x++) {
+        if(grass)brick(parts,x+.5+offset,offset,-.135,4,4,1,ground);
         else {
-          box(parts,x+.5,0,-.13,.988,.988,.10,ground);
+          box(parts,x+.5+offset,offset,-.13,.988,.988,.10,ground);
           if(water) {
             box(parts,x+.21,.22,-.025,.33,.08,.012,'#5ac4de','glass');
-            if(x%2===0)stud(parts,x+.72,-.18,-.025,.105,'#2399c5');
+            if((chunk.start+x)%2===0)stud(parts,x+.72,-.18,-.025,.105,'#2399c5');
           }
         }
-        if(lane.type==='road'&&x%2===0)box(parts,x+.5,.47,-.018,.57,.035,.01,'#eee7c7');
+        if(lane.type==='road'&&(chunk.start+x)%2===0)box(parts,x+.5,offset+.47,-.018,.57,.035,.01,'#eee7c7');
         if(lane.type==='rail')box(parts,x+.5,0,-.015,.16,.86,.065,P.brown);
       }
-      if(lane.type==='rail')for(const y of [-.25,.25])box(parts,0,y,.04,32,.055,.07,P.silver,'metal');
-      for(const t of lane.trees)tree(parts,t.x,0,t.pine);
-      for(const f of lane.flowers)if(Math.abs(f.x)<11) {
-        stud(parts,f.x,.20,0,.065,'#f4d449');
-        box(parts,f.x,.20,.03,.07,.07,.09,'#f3f1d5');
+      if(lane.type==='rail')for(const y of [-.25,.25])box(parts,span/2+offset,y,.04,span,.055,.07,P.silver,'metal');
+      for(const t of chunk.trees||[])tree(parts,t.x-chunk.start,0,t.pine);
+      for(const f of chunk.flowers||[]) {
+        const x=f.x-chunk.start;
+        stud(parts,x,.25,0,.065,'#f4d449');box(parts,x,.25,.03,.07,.07,.09,'#f3f1d5');
       }
-      if(grass&&lane.y%4===0)for(const x of [-9,9]) {
-        brick(parts,x,0,0,1,1,4,P.white);
-        brick(parts,x+.75,0,0,1,1,4,P.white);
-        box(parts,x+.375,0,.25,.75,.1,.12,P.white);
-      }
-      const scenery=build(parts);root.add(scenery);root.position.z=-lane.y;
-      for(const item of lane.items) {
-        const key=water?'raft':('car:'+item.color+':'+item.truck);
-        const node=prefab(key,p=>{
-          if(water)for(let i=0;i<7;i++)brick(p,(i-3)*2*STUD_PITCH,0,.015,2,3,2,i%2?P.brown:P.tan);
-          else car(p,item);
-        });
-        if(!water&&lane.direction<0)node.rotation.y=Math.PI;
-        root.add(node);moving.push({node,item});
-      }
-      const signals=[];
-      let train=null;
       if(lane.type==='rail') {
-        train=prefab('train',p=>{
+        const x=span/2;
+        brick(parts,x,0,0,2,2,1,P.white);
+        box(parts,x,0,.1,.12,.12,1.25,P.silver);
+        box(parts,x,0,1.25,.53,.17,.28,P.black);
+        box(parts,x,0,1.64,.55,.12,.1,P.white);
+        box(parts,x,0,1.5,.1,.12,.38,P.white);
+      }
+      const result=build(parts);result.position.x=chunk.start;result.signals=[];
+      if(lane.type==='rail')for(const side of [-1,1]) {
+        const light=new T.Mesh(geometry('signal-light',()=>new T.SphereGeometry(.065,10,8)),material('#6b2721'));
+        light.position.set(span/2+side*.135,1.39,.105);light.userData.sharedGeometry=true;
+        light.userData.worldX=chunk.start+span/2;result.add(light);result.signals.push(light);
+      }
+      return result;
+    }
+    createRow(lane) {
+      const root=new T.Group(),scenery=new T.Group();
+      root.add(scenery);root.position.z=-lane.y;
+      const row={root,static:scenery,chunks:new Map(),moving:[],movingMap:new Map(),train:null,signals:[]};
+      if(lane.type==='rail') {
+        row.train=prefab('train-body',p=>{
           for(let wagon=-1;wagon<=1;wagon++) {
             const x=wagon*3.9;
             box(p,x,0,.2,3.75,.77,.3,P.black);
@@ -276,27 +295,46 @@
             for(const side of [-1,1]) {
               for(let i=-1;i<=1;i++)box(p,x+i*.93,side*.398,.92,.66,.025,.31,P.glass,'glass');
               box(p,x,side*.402,.61,3.65,.03,.13,P.red);
-              wheel(p,x-1.25,side*.40,.26);wheel(p,x+1.25,side*.40,.26);
             }
           }
         });
-        root.add(train);
-        for(const x of [-7,7]) {
-          const sign=prefab('signal',p=>{
-            brick(p,0,0,0,2,2,1,P.white);
-            box(p,0,0,.1,.12,.12,1.25,P.silver);
-            box(p,0,0,1.25,.53,.17,.28,P.black);
-            box(p,0,0,1.64,.55,.12,.1,P.white);
-            box(p,0,0,1.5,.1,.12,.38,P.white);
-          });sign.position.x=x;root.add(sign);
-          for(const side of [-1,1]) {
-            const light=new T.Mesh(new T.SphereGeometry(.065,10,8),material('#6b2721'));
-            light.position.set(x+side*.135,1.39,.105);root.add(light);signals.push(light);
-          }
-        }
+        const axles=[];
+        for(let wagon=-1;wagon<=1;wagon++)for(const side of [-1,1])
+          for(const dx of [-1.25,1.25])axles.push([wagon*3.9+dx,side*.40,.26]);
+        attachWheels(row.train,axles);root.add(row.train);
       }
-      this.scene.add(root);
-      return {root,static:scenery,moving,train,signals};
+      this.scene.add(root);this.syncRow(row,lane);return row;
+    }
+    syncRow(row,lane) {
+      const chunks=lane.chunks||new Map([[-16,{start:-16,end:16,trees:lane.trees,flowers:lane.flowers}]]);
+      for(const [id,chunk] of row.chunks)if(!chunks.has(id)) {
+        row.static.remove(chunk);this.disposeChunk(chunk);row.chunks.delete(id);
+      }
+      for(const [id,description] of chunks)if(!row.chunks.has(id)) {
+        const chunk=this.createChunk(lane,description);row.chunks.set(id,chunk);row.static.add(chunk);
+      }
+      row.signals=[...row.chunks.values()].flatMap(c=>c.signals);
+      const active=new Set(lane.items.map(item=>item.id??item));
+      for(const [id,moving] of row.movingMap)if(!active.has(id)) {
+        row.root.remove(moving.node);row.movingMap.delete(id);
+      }
+      for(const item of lane.items) {
+        const id=item.id??item;
+        if(row.movingMap.has(id)){row.movingMap.get(id).item=item;continue;}
+        const water=lane.type==='water',key=water?'raft':('car-body:'+item.color+':'+item.truck);
+        const node=prefab(key,p=>{
+          if(water)for(let i=0;i<7;i++)brick(p,(i-3)*2*STUD_PITCH,0,.015,2,3,2,i%2?P.brown:P.tan);
+          else car(p,item);
+        });
+        if(!water) {
+          if(lane.direction<0)node.rotation.y=Math.PI;
+          const axles=[];
+          for(const side of [-1,1])for(const x of [-item.length*.31,item.length*.31])axles.push([x,side*.40,.23]);
+          attachWheels(node,axles);
+        }
+        row.root.add(node);row.movingMap.set(id,{node,item});
+      }
+      row.moving=[...row.movingMap.values()];
     }
     resize(width,height) {
       this.width=width;this.height=height;
@@ -312,13 +350,19 @@
       for(const lane of lanes.values()) {
         if(!this.rows.has(lane.y))this.rows.set(lane.y,this.createRow(lane));
         const row=this.rows.get(lane.y);
+        this.syncRow(row,lane);
         for(const {node,item} of row.moving) {
           node.position.x=item.x;
+          spinWheels(node,lane.speed*clock);
           node.visible=Math.abs(item.x-cameraX)<this.halfWidth+3;
         }
         if(row.train) {
-          const t=trainPosition(lane);row.train.visible=t.active;row.train.position.x=t.x;
-          row.signals.forEach((s,i)=>s.material=material(t.warning&&Math.sin(clock*12+i*Math.PI)>0?'#ff3c24':'#6b2721',t.warning?'signal':'plastic'));
+          const t=trainPosition(lane);row.train.visible=t.active&&Math.abs(t.x-cameraX)<this.halfWidth+7;row.train.position.x=t.x;
+          spinWheels(row.train,t.travel??lane.direction*clock*34);
+          row.signals.forEach((s,i)=>{
+            const warning=trainPosition(lane,s.userData.worldX).warning;
+            s.material=material(warning&&Math.sin(clock*12+i*Math.PI)>0?'#ff3c24':'#6b2721',warning?'signal':'plastic');
+          });
         }
       }
       const x=state==='welcome'?-this.halfWidth*.42:cameraX,forward=camera+3.5;
@@ -326,7 +370,7 @@
       this.sun.position.set(x-7,15,-camera+6);this.sun.target.position.set(x,0,-camera-3);
       this.chicken.position.set(player.x,Math.max(-.65,player.z),-player.y);
       this.chicken.scale.set(1,player.dead?.22:1,1);
-      this.chicken.visible=!(player.dead&&player.z<0);
+      this.chicken.visible=!player.drowned;
       this.particleMesh.count=Math.min(particles.length,24);
       const m=new T.Matrix4();
       particles.slice(0,24).forEach((p,i)=>{m.makeTranslation(p.x,p.z,-p.y);this.particleMesh.setMatrixAt(i,m);});

@@ -9,7 +9,7 @@
     $('render-error').hidden=false;$('start').disabled=true;
     console.error('Unable to initialize the 3D renderer:',error);return;
   }
-  const WORLD = 16, HOP_TIME = .16, FORWARD_LIMIT = 5;
+  const GRID=BrickGrid, CHUNK_WIDTH=8, HOP_TIME=.16, FORWARD_LIMIT=5;
   const TRAFFIC_SPEED = 1.15, TRAFFIC_SPACING = 1.2;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let width, height, camera = 0, cameraX = 0;
@@ -58,39 +58,74 @@
     }
     const direction = Math.random() < .5 ? -1 : 1;
     const difficulty = Math.min(y/100,1.4);
-    const lane = { y,type,direction,speed:0,items:[],trees:[],flowers:[], phase:random(0,9),period:random(9,13) };
-    if (type === 'road') {
-      lane.speed = direction * random(1.4,2.4+difficulty) * TRAFFIC_SPEED;
-      const targetSpacing=random(5.2,7.5)*TRAFFIC_SPACING;
-      const count=Math.max(3,Math.floor(WORLD*2/targetSpacing));
-      const spacing=WORLD*2/count, offset=random(0,spacing);
-      // Even spacing around the wrap boundary prevents close pairs on re-entry.
-      for(let i=0;i<count;i++) {
-        const x=-WORLD+i*spacing;
-        const truck = Math.random() < .22;
-        lane.items.push({ x:x+offset, length:truck?2.5:1.75, truck, color:choose(['#f5bd18','#cf3428','#f5f2e7','#177eae','#8564a8']) });
-      }
+    const lane={y,type,direction,speed:0,items:[],trees:[],flowers:[],phase:random(0,9),period:random(9,13),
+      seed:Math.floor(random(0,4294967296)),streamed:true,chunks:new Map(),itemMap:new Map()};
+    if(type==='road') {
+      lane.speed=direction*random(1.4,2.4+difficulty)*TRAFFIC_SPEED;
+      const count=Math.max(3,Math.floor(32/(random(5.2,7.5)*TRAFFIC_SPACING)));
+      lane.spacing=32/count;lane.offset=random(0,lane.spacing);
     }
-    if (type === 'water') {
-      lane.speed = direction * random(.8,1.4);
-      for(let x=-WORLD;x<WORLD;x+=5.2) lane.items.push({x:x+random(-.4,.4),length:3.5});
-    }
-    if (type === 'grass') {
-      // A continuous central corridor keeps every generated bank traversable.
-      for(let x=-WORLD;x<=WORLD;x++) {
-        if (Math.abs(x)>2 && Math.random()<.23) lane.trees.push({x,size:random(.85,1.3),pine:Math.random()<.3});
-        else if(Math.random()<.25) lane.flowers.push({x:x+random(-.3,.3),color:choose(['#e7e89b','#ecf0c9','#78b75d'])});
-      }
+    if(type==='water') {
+      lane.speed=direction*random(.8,1.4);
+      lane.spacing=5.2;lane.offset=random(0,lane.spacing);
     }
     lanes.set(y,lane);
   }
+  // Coordinate-based variation lets revisited scenery stay the same without
+  // storing an infinite world. Only nearby chunks and moving items are retained.
+  function noise(seed,index,salt=0) {
+    let n=(seed^Math.imul(index|0,374761393)^Math.imul(salt,668265263))|0;
+    n=Math.imul(n^(n>>>13),1274126177);
+    return ((n^(n>>>16))>>>0)/4294967296;
+  }
+  function updateLaneItems(lane,left=lane.left,right=lane.right) {
+    if(!lane.streamed||!lane.spacing)return;
+    const motion=lane.speed*clock;
+    const first=Math.floor((left-lane.offset-motion)/lane.spacing)-1;
+    const last=Math.ceil((right-lane.offset-motion)/lane.spacing)+1;
+    for(const id of lane.itemMap.keys())if(id<first||id>last)lane.itemMap.delete(id);
+    for(let id=first;id<=last;id++) {
+      if(!lane.itemMap.has(id)) {
+        const truck=noise(lane.seed,id,2)<.22;
+        lane.itemMap.set(id,{id,length:lane.type==='water'?3.5:truck?2.5:1.75,truck,
+          color:['#f5bd18','#cf3428','#f5f2e7','#177eae','#8564a8'][Math.floor(noise(lane.seed,id,3)*5)]});
+      }
+      const item=lane.itemMap.get(id);
+      item.x=id*lane.spacing+lane.offset+motion;
+    }
+    lane.items=[...lane.itemMap.values()].sort((a,b)=>a.id-b.id);
+  }
+  function syncLane(lane,left,right) {
+    if(!lane.streamed)return;
+    for(const start of lane.chunks.keys())if(start<left||start>=right)lane.chunks.delete(start);
+    for(let start=left;start<right;start+=CHUNK_WIDTH) {
+      if(lane.chunks.has(start))continue;
+      const chunk={start,end:start+CHUNK_WIDTH,trees:[],flowers:[]};
+      if(lane.type==='grass')for(let x=start;x<chunk.end;x++) {
+        // Regular clear columns keep the wider banks navigable.
+        if(Math.abs(x)>2&&mod(x,8)>1&&noise(lane.seed,x,4)<.23)
+          chunk.trees.push({x,pine:noise(lane.seed,x,5)<.3});
+        else if(noise(lane.seed,x,6)<.25)
+          chunk.flowers.push({x:x+Math.floor(noise(lane.seed,x,7)*3)*GRID.pitch});
+      }
+      lane.chunks.set(start,chunk);
+    }
+    lane.left=left;lane.right=right;
+    lane.trees=[...lane.chunks.values()].flatMap(c=>c.trees);
+    lane.flowers=[...lane.chunks.values()].flatMap(c=>c.flowers);
+    updateLaneItems(lane,left,right);
+  }
   function generate() {
-    while(nextRow < Math.max(20,Math.floor(camera)+22)) makeLane(nextRow++);
-    for(const y of lanes.keys()) if(y < camera-13) lanes.delete(y);
+    while(nextRow < Math.max(20,Math.floor(camera)+22))makeLane(nextRow++);
+    for(const y of lanes.keys())if(y<camera-13)lanes.delete(y);
+    const radius=Math.max(16,Math.ceil((width||window.innerWidth)/48/2)+8);
+    const left=Math.floor((Math.min(player.x,cameraX)-radius)/CHUNK_WIDTH)*CHUNK_WIDTH;
+    const right=Math.ceil((Math.max(player.x,cameraX)+radius)/CHUNK_WIDTH)*CHUNK_WIDTH;
+    for(const lane of lanes.values())syncLane(lane,left,right);
   }
   function reset() {
     lanes = new Map(); nextRow=-8; camera=0; cameraX=0; score=0; clock=0; idleTime=0;
-    player={x:0,y:0,z:0,hop:null,facing:'up',dead:false};
+    player={x:0,y:0,z:GRID.groundStandingHeight,hop:null,raft:null,localX:0,facing:'up',dead:false};
     particles=[]; queue=null; shake=0; deathTime=0; timerWarning=false; timerTenth=-1;
     oldBest=best; generate(); $('score').textContent='0'; $('biome').textContent='A FRESH START';
   }
@@ -120,13 +155,13 @@
   }
   function die(kind) {
     if(state!=='playing') return;
-    state='dying'; player.dead=true; player.hop=null; queue=null; deathTime=0;
+    state='dying'; player.dead=true; player.drowned=kind==='water'; player.hop=null; queue=null; deathTime=0;
     shake = reducedMotion ? 0 : .22;
     const messages = {
       car:['ROADKILL!',"Those cars don't stop for chickens."],
       water:['OH, CLUCK.','Chickens are great hoppers. Swimmers? Not so much.'],
       train:['WRONG TRACK.','Next time, wait for the train to pass.'],
-      edge:['OUT OF BOUNDS!','Stay on the path, little wanderer.'],
+      edge:['LEFT BEHIND!','Keep heading up the road.'],
       idle:["TIME'S UP!",'Five seconds without a forward hop. Keep heading up the road!']
     };
     const [title,reason]=messages[kind];
@@ -141,36 +176,62 @@
     for(let i=0;i<16;i++) particles.push({x:player.x,y:player.y,z:.3,vx:random(-2,2),vy:random(-2,2),vz:random(2,5),life:random(.3,.8),color:kind==='water'?'#c1eef0':'#fff9d9'});
 
   }
-  function hop(dx,dy) {
-    if(state!=='playing') return;
-    if(player.hop) { queue={dx,dy}; return; }
-    const tx=Math.round(player.x)+dx, ty=player.y+dy;
-    if(Math.abs(tx)>10) { return; }
-    const lane=lanes.get(ty);
-    if(!lane || lane.trees.some(tree=>Math.abs(tree.x-tx)<.7)) { return; }
-    player.facing='up';
-    player.hop={sx:player.x,sy:player.y,tx,ty,t:0};
+  function raftLanding(lane,x,ahead=0) {
+    for(const raft of lane.items) {
+      const center=raft.x+lane.speed*ahead;
+      const margin=raft.length/2-.375;
+      if(Math.abs(x-center)>margin+GRID.pitch/2)continue;
+      const localX=clamp(GRID.snap(x-center,GRID.raftOrigin),-margin,margin);
+      return {raft,localX,x:center+localX};
+    }
+    return null;
   }
-  function trainPosition(lane) {
+  function hop(dx,dy) {
+    if(state!=='playing')return;
+    if(player.hop){queue={dx,dy};return;}
+    const ty=player.y+dy,lane=lanes.get(ty);
+    let tx=GRID.snap(player.x+dx);
+    if(!lane||lane.trees.some(tree=>Math.abs(tree.x-tx)<.7))return;
+    let landing=lane.type==='water'?raftLanding(lane,player.x+dx,HOP_TIME):null;
+    if(dy===0&&player.raft&&lane.items.includes(player.raft)) {
+      const localX=GRID.snap(player.localX+dx,GRID.raftOrigin);
+      if(Math.abs(localX)<=player.raft.length/2-.375)
+        landing={raft:player.raft,localX,x:player.raft.x+lane.speed*HOP_TIME+localX};
+    }
+    if(landing)tx=landing.x;
+    player.facing='up';
+    player.hop={sx:player.x,sy:player.y,sz:player.z,tx,ty,tz:landing?GRID.raftStandingHeight:GRID.groundStandingHeight,
+      raft:landing?.raft,localX:landing?.localX,t:0};
+    player.raft=null;
+  }
+  function trainPosition(lane,atX=player.x) {
     const phase=mod(clock+lane.phase,lane.period);
-    return {warning:phase>lane.period-2.2,active:phase<1.55,x:lane.direction*(-25+phase*34)};
+    const base=lane.direction*(-25+phase*34),spacing=lane.period*34;
+    const x=base+Math.round((atX-base)/spacing)*spacing;
+    const approaching=lane.direction*(atX-x);
+    return {active:true,x,warning:approaching>6&&approaching<6+34*2.2,travel:lane.direction*clock*34};
   }
   function update(dt,elapsed=dt) {
     if(state==='paused'||state==='over') return;
     clock+=dt;
     if(toastTime>0) { toastTime-=dt; if(toastTime<=0) $('toast').classList.remove('show'); }
-    for(const lane of lanes.values()) for(const item of lane.items) item.x=mod(item.x+lane.speed*dt+WORLD,WORLD*2)-WORLD;
+    for(const lane of lanes.values()) {
+      if(lane.streamed)updateLaneItems(lane);
+      else for(const item of lane.items)item.x+=lane.speed*dt;
+    }
     if(state==='playing') {
       idleTime+=elapsed;
       updateTimer();
       if(idleTime>=FORWARD_LIMIT) { die('idle'); return; }
       if(player.hop) {
         const h=player.hop; h.t+=dt;
+        if(h.raft)h.tx=h.raft.x+h.localX;
         const t=clamp(h.t/HOP_TIME,0,1);
         player.x=h.sx+(h.tx-h.sx)*t; player.y=h.sy+(h.ty-h.sy)*t;
-        player.z=Math.sin(t*Math.PI)*.55;
+        player.z=h.sz+(h.tz-h.sz)*t+Math.sin(t*Math.PI)*.55;
         if(t>=1) {
-          player.x=h.tx; player.y=h.ty; player.z=0; player.hop=null;
+          player.x=h.tx; player.y=h.ty; player.z=h.tz; player.hop=null;
+          player.raft=h.raft||null;player.localX=h.localX||0;
           if(h.ty>h.sy) { idleTime=0; timerWarning=false; updateTimer(); }
           const previous=score; score=Math.max(score,player.y);
           if(score!==previous) {
@@ -191,9 +252,15 @@
         if(train.active && Math.abs(train.x-player.x)<6.1 && Math.abs(player.y-lane.y)<.65) die('train');
       }
       if(state==='playing' && !player.hop && lane?.type==='water') {
-        const log=lane.items.find(item=>Math.abs(item.x-player.x)<item.length/2-.12);
-        if(!log) die('water');
-        else { player.x+=lane.speed*dt; if(Math.abs(player.x)>10.5) die('edge'); }
+        if(!player.raft||!lane.items.includes(player.raft)) {
+          const landing=raftLanding(lane,player.x);
+          if(landing){player.raft=landing.raft;player.localX=landing.localX;}
+          else die('water');
+        }
+        if(state==='playing') {
+          player.x=player.raft.x+player.localX;
+          player.z=GRID.raftStandingHeight;
+        }
       }
       if(state==='playing' && !player.hop && queue) { const move=queue; queue=null; hop(move.dx,move.dy); }
       if(player.y<camera-7) die('edge');

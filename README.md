@@ -1,10 +1,10 @@
 # Crossy Road — One more hop.
 
-A playable Crossy Road-inspired browser game, written in plain JavaScript. An original Canvas renderer draws shaded voxel shapes through an isometric camera: chunky chickens, cars, trees, trains, and floating logs.
+A playable Crossy Road-inspired browser game, written in plain JavaScript. An original 3D brick world uses glossy plastic materials, beveled edges, embossed studs, studded baseplates, shaped windshields, rubber tires, and live shadows. The elevated camera stays directly behind the chicken.
 
 ## Play locally
 
-Open **index.html** in a modern browser. No installation, server, internet connection, dependencies, or build step is needed.
+Open **index.html** in a modern browser. No installation, server, internet connection, or build step is needed. Three.js is bundled locally. A browser with WebGL and graphics acceleration is required.
 
 ## Controls
 
@@ -12,14 +12,13 @@ Open **index.html** in a modern browser. No installation, server, internet conne
 - **Space / tap:** hop forward.
 - **Swipe / on-screen arrows:** move on a phone or tablet.
 - **P / Escape:** pause or resume.
-- **M / music button:** toggle synthesized sound (off initially).
 - **Enter / Space:** restart after a run.
 
-Cross roads without touching vehicles. Ride moving logs over water. Flashing red lights warn of an approaching train. Keep moving: standing still for 12 seconds ends the run. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
+Cross roads without touching vehicles. Ride moving logs over water. Flashing red lights warn of an approaching train. Keep moving forward: a visible five-second countdown ends your run at zero. Completing a forward hop resets it to five seconds, even when revisiting a row. Sideways moves, backward hops, blocked moves, and drifting on logs do not reset it. Pausing or leaving the tab freezes the countdown. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
 
 ## Publish with GitHub Pages
 
-1. Commit `index.html`, `style.css`, `game.js`, and `.nojekyll` to your repository.
+1. Commit `index.html`, `style.css`, `game.js`, `brick-renderer.js`, `vendor/`, and `.nojekyll` to your repository.
 2. On GitHub, open **Settings → Pages**.
 3. Under **Build and deployment**, choose **Deploy from a branch**.
 4. Select your branch (usually `main`) and **/ (root)**, then **Save**.
@@ -31,16 +30,26 @@ All asset links are relative, so repository URLs such as `https://YOUR-NAME.gith
 
 - Endless procedural lanes with clear central routes and regular safe banks
 - Traffic, drifting logs, railway signals, and passing trains
-- Hopping animation, directional chicken, depth sorting, shadows, and particle effects
-- Smooth camera following and progressively faster road traffic
+- Hopping animation, a view from behind the chicken, depth sorting, shadows, and particle effects
+- A centered rear camera, horizontal lanes, and progressively faster road traffic
 - Keyboard, mouse, swipe, and touch-button controls
 - Pause menu, automatic pause when leaving the tab, instant restart, and local best score
-- Responsive high-DPI canvas and optional Web Audio effects
+- A five-second forward-hop countdown with an urgent final-two-seconds warning
+- Larger, high-contrast labels, scores, controls, and menus
+- Responsive high-DPI WebGL canvas
 
 ## Files
 
 - `index.html` — accessible game interface and menus
 - `style.css` — responsive presentation
-- `game.js` — renderer, procedural world, input, audio, and gameplay
+- `game.js` — procedural world, input, countdown, and gameplay
+- `brick-renderer.js` — original 3D models, materials, lighting, and rendering
+- `vendor/three.min.js` — bundled Three.js 0.160.1 (MIT license in `vendor/LICENSE-three.txt`)
 
-An unofficial fan-made programming project inspired by Crossy Road. All visuals are drawn in code; no original game assets or libraries are included.
+An unofficial fan-made programming project inspired by Crossy Road. All visuals are drawn in code; no original Crossy Road assets are included. LEGO is a trademark of the LEGO Group; this project is not affiliated with or endorsed by the LEGO Group.
+
+## Optional gameplay checks
+
+From this folder, run: node tests/game.test.cjs
+
+These checks cover the countdown, movement, pause, hazards, score persistence, and local asset paths. They use Node's built-in modules; Node is only needed to run these developer checks, never to play or publish the game.

@@ -29,4 +29,23 @@ check('train collisions still work',()=>{safe();g.lanes.set(0,{y:0,type:'rail',t
 check('best score persists across runs',()=>{safe();assert(g.best>=1);assert(Number(saved['crossy-road-best'])>=1)});
 check('world remains bounded',()=>{for(let row=0;row<1000;row+=5){g.setCamera(row);g.generate();assert(g.lanes.size<40)}});
 check('all static page assets exist locally',()=>{const html=fs.readFileSync('index.html','utf8');for(const [,file] of html.matchAll(/(?:src|href)="\.\/([^"]+)"/g))assert(fs.existsSync(file),file);assert(!/id="sound"|Sound \(M\)/.test(html))});
+
+check('road vehicles are 15 percent faster',()=>{
+  for(let run=0;run<20;run++){g.start();for(const lane of g.lanes.values())if(lane.type==='road'){
+    const speed=Math.abs(lane.speed),difficulty=Math.min(lane.y/100,1.4);
+    assert(speed>=1.4*1.15-1e-8);assert(speed<=(2.4+difficulty)*1.15+1e-8);
+  }}
+});
+check('traffic is sparse and evenly spaced across wrap boundary',()=>{
+  for(let run=0;run<20;run++){g.start();for(const lane of g.lanes.values())if(lane.type==='road'){
+    assert(lane.items.length>=3&&lane.items.length<=5);
+    const xs=lane.items.map(i=>i.x).sort((a,b)=>a-b);
+    const gaps=xs.map((x,i)=>i===xs.length-1?32+xs[0]-x:xs[i+1]-x);
+    gaps.forEach(gap=>{assert(gap>=6.4-1e-8);assert(Math.abs(gap-32/xs.length)<1e-8)});
+  }}
+});
+check('raft hitboxes match the standard brick grid',()=>{
+  g.start();for(const lane of g.lanes.values())if(lane.type==='water')lane.items.forEach(i=>assert.equal(i.length,3.5));
+});
 console.log(count+' gameplay and delivery checks passed.');
+

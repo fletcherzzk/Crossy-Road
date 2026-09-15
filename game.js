@@ -10,6 +10,7 @@
     console.error('Unable to initialize the 3D renderer:',error);return;
   }
   const WORLD = 16, HOP_TIME = .16, FORWARD_LIMIT = 5;
+  const TRAFFIC_SPEED = 1.15, TRAFFIC_SPACING = 1.2;
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let width, height, camera = 0, cameraX = 0;
   let state = 'welcome', lanes = new Map(), player, score = 0, best = 0, oldBest = 0;
@@ -59,16 +60,20 @@
     const difficulty = Math.min(y/100,1.4);
     const lane = { y,type,direction,speed:0,items:[],trees:[],flowers:[], phase:random(0,9),period:random(9,13) };
     if (type === 'road') {
-      lane.speed = direction * random(1.4,2.4+difficulty);
-      const spacing=random(5.2,7.5), offset=random(0,spacing);
-      for(let x=-WORLD;x<WORLD;x+=spacing) {
+      lane.speed = direction * random(1.4,2.4+difficulty) * TRAFFIC_SPEED;
+      const targetSpacing=random(5.2,7.5)*TRAFFIC_SPACING;
+      const count=Math.max(3,Math.floor(WORLD*2/targetSpacing));
+      const spacing=WORLD*2/count, offset=random(0,spacing);
+      // Even spacing around the wrap boundary prevents close pairs on re-entry.
+      for(let i=0;i<count;i++) {
+        const x=-WORLD+i*spacing;
         const truck = Math.random() < .22;
         lane.items.push({ x:x+offset, length:truck?2.5:1.75, truck, color:choose(['#f5bd18','#cf3428','#f5f2e7','#177eae','#8564a8']) });
       }
     }
     if (type === 'water') {
       lane.speed = direction * random(.8,1.4);
-      for(let x=-WORLD;x<WORLD;x+=5.2) lane.items.push({x:x+random(-.4,.4),length:3.45});
+      for(let x=-WORLD;x<WORLD;x+=5.2) lane.items.push({x:x+random(-.4,.4),length:3.5});
     }
     if (type === 'grass') {
       // A continuous central corridor keeps every generated bank traversable.

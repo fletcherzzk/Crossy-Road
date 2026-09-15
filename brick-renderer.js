@@ -2,6 +2,7 @@
 (() => {
   'use strict';
   const T = THREE;
+  const STUD_PITCH = .25; // Shared by chicken body, terrain, rafts, and vehicles.
   const geometryCache = new Map(), materialCache = new Map(), prefabCache = new Map();
   const P = { green:'#4f9d38',lime:'#74b544',darkGreen:'#267544',brown:'#76452b',tan:'#b4804b',
     white:'#f5f3e9',red:'#c92d25',yellow:'#f7bd19',black:'#202329',glass:'#365c75',silver:'#bec5cd' };
@@ -52,7 +53,7 @@
     part(parts,geometry('stud:'+r,()=>new T.CylinderGeometry(r,r,h,16,1,true)),color,x,y,z+h/2);
     part(parts,geometry('cap:'+r,()=>new T.CircleGeometry(r,16)),color,x,y,z+h,[-Math.PI/2,0,0],'stud');
   }
-  function brick(parts,x,y,z,nx,ny,plates,color,pitch=.25) {
+  function brick(parts,x,y,z,nx,ny,plates,color,pitch=STUD_PITCH) {
     const w=nx*pitch-.012,d=ny*pitch-.012,h=plates*.1-.008;
     box(parts,x,y,z,w,d,h,color);
     for(let j=0;j<ny;j++) for(let i=0;i<nx;i++)
@@ -123,6 +124,30 @@
       part(parts,geometry('hub-hole',()=>new T.CylinderGeometry(.017,.017,.008,8)),P.black,x+Math.cos(a)*.065,y-.058,z+Math.sin(a)*.065,[Math.PI/2,0,0]);
     }
   }
+  function cabin(parts,x,y,z,color) {
+    // Both windshields lean along X (the direction the car travels).
+    // The roof is narrower than the lower glass, with symmetric side windows.
+    const g=geometry('cabin-glass',()=>{
+      const verts=[[-.64,0,.33],[.56,0,.33],[.30,.35,.33],[-.45,.35,.33],
+        [-.64,0,-.33],[.56,0,-.33],[.30,.35,-.33],[-.45,.35,-.33]];
+      const ids=[0,1,2,0,2,3,5,4,7,5,7,6,4,0,3,4,3,7,1,5,6,1,6,2,3,2,6,3,6,7,4,5,1,4,1,0];
+      const result=new T.BufferGeometry();
+      result.setAttribute('position',new T.Float32BufferAttribute(ids.flatMap(i=>verts[i]),3));
+      result.computeVertexNormals();return result;
+    });
+    part(parts,g,P.glass,x,y,z,null,'glass');
+    for(const side of [-1,1]) {
+      // Sloped A/C pillars follow the front and rear glass edges exactly.
+      for(const [bottom,top] of [[.56,.30],[-.64,-.45]]) {
+        const dx=top-bottom,h=.35,length=Math.hypot(dx,h);
+        part(parts,geometry('pillar:'+length,()=>new T.BoxGeometry(.038,length,.037)),color,
+          x+(bottom+top)/2,y+side*.338,z+h/2,[0,0,-Math.atan2(dx,h)]);
+      }
+      box(parts,x-.15,y+side*.338,z,.037,.022,.35,color);
+      box(parts,x-.04,y+side*.338,z-.01,1.13,.025,.03,color);
+    }
+    brick(parts,x-.075,y,z+.36,3,3,1,color);
+  }
   function car(parts,item) {
     const c=item.color,w=item.length;
     box(parts,0,0,.18,w-.12,.6,.13,P.black);
@@ -135,17 +160,16 @@
       }
       brick(parts,-.375,0,1.42,6,3,1,P.white);
       box(parts,.88,0,.53,.65,.69,.48,c);
-      box(parts,.91,-.358,.72,.4,.022,.24,P.glass,'glass');
+      for(const side of [-1,1])
+        box(parts,.88,side*.358,.72,.43,.022,.24,P.glass,'glass');
+      box(parts,1.214,0,.71,.022,.54,.25,P.glass,'glass');
+      box(parts,1.226,0,.69,.025,.59,.025,c);
+      box(parts,1.226,0,.96,.025,.59,.025,c);
       brick(parts,.875,0,1.02,3,3,1,c);
     } else {
-      box(parts,-.06,0,.53,.83,.63,.35,P.glass,'glass');
-      // Separate pillars and a sloped, transparent-looking windshield.
-      slope(parts,.46,0,.53,.28,.63,.32,P.glass);
-      brick(parts,-.125,0,.89,4,3,1,c);
-      for(const side of [-1,1]) {
-        box(parts,-.12,side*.326,.55,.045,.025,.34,c);
-        box(parts,-.32,side*.344,.56,.11,.024,.032,P.silver);
-      }
+      cabin(parts,0,0,.53,c);
+      for(const side of [-1,1])
+        box(parts,-.32,side*.354,.56,.11,.024,.032,P.silver);
       brick(parts,.625,0,.52,2,3,1,c);
       brick(parts,-.69,0,.52,1,3,1,c);
     }
@@ -207,7 +231,7 @@
       const grass=lane.type==='grass',water=lane.type==='water';
       const ground=grass?(lane.y%2?P.green:P.lime):water?'#168cbd':lane.type==='road'?'#535e69':'#99a090';
       for(let x=-16;x<16;x++) {
-        if(grass) brick(parts,x+.5,0,-.135,2,2,1,ground,.5);
+        if(grass) brick(parts,x+.5,0,-.135,4,4,1,ground);
         else {
           box(parts,x+.5,0,-.13,.988,.988,.10,ground);
           if(water) {
@@ -231,9 +255,9 @@
       }
       const scenery=build(parts);root.add(scenery);root.position.z=-lane.y;
       for(const item of lane.items) {
-        const key=water?'log':('car:'+item.color+':'+item.truck);
+        const key=water?'raft':('car:'+item.color+':'+item.truck);
         const node=prefab(key,p=>{
-          if(water)for(let i=0;i<7;i++)brick(p,(i-3)*.49,0,.015,2,3,2,i%2?P.brown:P.tan);
+          if(water)for(let i=0;i<7;i++)brick(p,(i-3)*2*STUD_PITCH,0,.015,2,3,2,i%2?P.brown:P.tan);
           else car(p,item);
         });
         if(!water&&lane.direction<0)node.rotation.y=Math.PI;

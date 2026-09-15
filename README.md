@@ -1,6 +1,6 @@
 # Crossy Road — One more hop.
 
-A playable Crossy Road-inspired browser game, written in plain JavaScript. An original 3D brick world uses glossy plastic materials, beveled edges, embossed studs, studded baseplates, shaped windshields, rubber tires, and live shadows. The elevated camera stays directly behind the chicken.
+A playable Crossy Road-inspired browser game, written in plain JavaScript. An original 3D brick world uses glossy plastic materials, beveled edges, embossed studs, baseplates and rafts using the chicken's stud scale, correctly oriented windshields, rubber tires, and live shadows. The elevated camera stays directly behind the chicken.
 
 ## Play locally
 
@@ -29,7 +29,8 @@ All asset links are relative, so repository URLs such as `https://YOUR-NAME.gith
 ## What's included
 
 - Endless procedural lanes with clear central routes and regular safe banks
-- Traffic, drifting logs, railway signals, and passing trains
+- Cars and trucks moving 15% faster, with wider, evenly spaced traffic gaps
+- Drifting rafts, railway signals, and passing trains
 - Hopping animation, a view from behind the chicken, depth sorting, shadows, and particle effects
 - A centered rear camera, horizontal lanes, and progressively faster road traffic
 - Keyboard, mouse, swipe, and touch-button controls
@@ -51,5 +52,6 @@ An unofficial fan-made programming project inspired by Crossy Road. All visuals 
 ## Optional gameplay checks
 
 From this folder, run: node tests/game.test.cjs
+Then run: node tests/renderer.test.cjs
 
 These checks cover the countdown, movement, pause, hazards, score persistence, and local asset paths. They use Node's built-in modules; Node is only needed to run these developer checks, never to play or publish the game.

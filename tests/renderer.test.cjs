@@ -2,6 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const T=require('../vendor/three.min.js');
 const sandbox={THREE:T,BrickGrid:require("../brick-grid.js"),window:{},document:{createElement(){return{width:128,height:128,getContext(){return{fillRect(){},fillText(){}}}}}}};
 let source=fs.readFileSync('brick-renderer.js','utf8').replace('  window.BrickRenderer=BrickRenderer;','  window.BrickRenderer=BrickRenderer;window.test={brick,cabin,chicken,geometryCache,STUD_PITCH,attachWheels,spinWheels};');
+assert(!source.includes('#f3f1d5'),'Grass renderer must not draw white flower spots');
 vm.runInNewContext(source,sandbox);
 const {brick,cabin,chicken,geometryCache,STUD_PITCH}=sandbox.window.test;
 assert.equal(STUD_PITCH,.25);

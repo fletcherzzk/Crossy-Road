@@ -260,10 +260,6 @@
       }
       if(lane.type==='rail')for(const y of [-.25,.25])box(parts,span/2+offset,y,.04,span,.055,.07,P.silver,'metal');
       for(const t of chunk.trees||[])tree(parts,t.x-chunk.start,0,t.pine);
-      for(const f of chunk.flowers||[]) {
-        const x=f.x-chunk.start;
-        stud(parts,x,.25,0,.065,'#f4d449');box(parts,x,.25,.03,.07,.07,.09,'#f3f1d5');
-      }
       if(lane.type==='rail') {
         const x=span/2;
         brick(parts,x,0,0,2,2,1,P.white);

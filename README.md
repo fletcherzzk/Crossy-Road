@@ -16,7 +16,7 @@ Open **index.html** in a modern browser. No installation, server, internet conne
 
 Cross roads without touching vehicles. Ride moving logs over water. Flashing red lights warn of an approaching train. Landings align to the stud grid on grass and rafts. On a raft, the chicken stays attached to its landing stud while the raft moves. You can travel left or right indefinitely; terrain and hazards load around you.
 
-Keep moving forward: a visible five-second countdown ends your run at zero. Completing a forward hop resets it to five seconds, even when revisiting a row. Sideways moves, backward hops, blocked moves, and drifting on logs do not reset it. Pausing or leaving the tab freezes the countdown. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
+Keep moving forward: a visible five-second countdown ends your run at zero. The timer resets only when you set a new furthest-row record. Returning to a row already reached after moving backward does not reset it. Sideways moves, backward hops, blocked moves, and drifting on rafts do not reset it. Pausing or leaving the tab freezes the countdown. Your score is the furthest row reached, and your best is saved on this browser when local storage is available.
 
 ## Publish with GitHub Pages
 

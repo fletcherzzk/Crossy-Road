@@ -15,7 +15,17 @@ check('defeated at five seconds',()=>{g.update(.011);assert.equal(g.state,'dying
 check('forward hop resets upon completion',()=>{safe();step(2);g.hop(0,1);assert(g.idle>=1.99);step(.16);assert.equal(g.player.y,1);assert.equal(el('timer-value').textContent,'5.0');assert.equal(g.score,1)});
 check('sideways movement cannot reset timer',()=>{safe();step(2);g.hop(1,0);step(.17);assert(g.idle>2.15);assert.equal(g.player.facing,'up')});
 check('backward movement cannot reset timer',()=>{safe();step(2);g.hop(0,-1);step(.17);assert(g.idle>2.15)});
-check('forward hop revisiting a row resets timer',()=>{g.hop(0,1);step(.16);assert.equal(el('timer-value').textContent,'5.0')});
+check('returning to a reached row cannot reset the timer',()=>{
+  safe();g.hop(0,1);step(.16);assert.equal(g.score,1);
+  step(1);g.hop(0,-1);step(.16);const elapsedBeforeReturn=g.idle;
+  g.hop(0,1);step(.16);
+  assert.equal(g.score,1);assert(g.idle>elapsedBeforeReturn);assert(parseFloat(el('timer-value').textContent)<4);
+});
+check('grass chunks do not generate white flower spots',()=>{
+  g.start();for(const lane of g.lanes.values())if(lane.type==='grass') {
+    assert.equal(lane.flowers.length,0);for(const chunk of lane.chunks.values())assert.equal(chunk.flowers.length,0);
+  }
+});
 check('blocked forward input cannot reset timer',()=>{safe();g.lanes.get(1).trees.push({x:0});step(3);g.hop(0,1);assert.equal(g.player.hop,null);assert(g.idle>2.99)});
 check('log drift cannot reset timer',()=>{safe();g.lanes.set(0,{y:0,type:'water',trees:[],items:[{x:0,length:3.45}],speed:.1});step(3);assert(g.idle>2.99);assert(g.player.x>0)});
 check('pause freezes countdown',()=>{safe();step(1);g.pause();const remaining=g.idle;g.update(.035,20);assert.equal(g.idle,remaining);assert.equal(g.state,'paused');g.pause();g.update(.1);assert(g.idle>remaining)});

@@ -37,7 +37,7 @@
     }
     $('timer-fill').style.transform='scaleX('+(remaining/FORWARD_LIMIT)+')';
     $('timer').dataset.urgent=remaining<=2?'true':'false';
-    $('timer-note').textContent=remaining<=2?'HOP FORWARD NOW!':'Forward hops reset the clock';
+    $('timer-note').textContent=remaining<=2?'HOP FORWARD NOW!':'New distance resets the clock';
     if(remaining<=2&&!timerWarning&&state==='playing') {
       timerWarning=true;notify('2 SECONDS LEFT — HOP FORWARD!');
     }
@@ -105,8 +105,6 @@
         // Regular clear columns keep the wider banks navigable.
         if(Math.abs(x)>2&&mod(x,8)>1&&noise(lane.seed,x,4)<.23)
           chunk.trees.push({x,pine:noise(lane.seed,x,5)<.3});
-        else if(noise(lane.seed,x,6)<.25)
-          chunk.flowers.push({x:x+Math.floor(noise(lane.seed,x,7)*3)*GRID.pitch});
       }
       lane.chunks.set(start,chunk);
     }
@@ -136,7 +134,7 @@
     $('pause').hidden=false; $('pause').textContent='Ⅱ'; $('pause').setAttribute('aria-label','Pause game');
     $('touch-controls').hidden=false; $('wash').classList.add('off');
     canvas.focus({preventScroll:true});
-    notify('FORWARD HOPS RESET YOUR 5-SECOND TIMER.');
+    notify('REACH A NEW ROW TO RESET YOUR 5-SECOND TIMER.');
   }
   function pause() {
     if(state==='playing') {
@@ -162,7 +160,7 @@
       water:['OH, CLUCK.','Chickens are great hoppers. Swimmers? Not so much.'],
       train:['WRONG TRACK.','Next time, wait for the train to pass.'],
       edge:['LEFT BEHIND!','Keep heading up the road.'],
-      idle:["TIME'S UP!",'Five seconds without a forward hop. Keep heading up the road!']
+      idle:["TIME'S UP!",'Five seconds without reaching a new row. Keep heading up the road!']
     };
     const [title,reason]=messages[kind];
     $('overlay-title').textContent=title; $('reason').textContent=reason;
@@ -232,9 +230,11 @@
         if(t>=1) {
           player.x=h.tx; player.y=h.ty; player.z=h.tz; player.hop=null;
           player.raft=h.raft||null;player.localX=h.localX||0;
-          if(h.ty>h.sy) { idleTime=0; timerWarning=false; updateTimer(); }
           const previous=score; score=Math.max(score,player.y);
           if(score!==previous) {
+            // Only a new furthest row earns a fresh five seconds. Returning
+            // to a row already reached cannot be used to extend the timer.
+            idleTime=0; timerWarning=false; updateTimer();
             $('score').textContent=score;
             if(score>best) {
               best=score; $('best').textContent=best;
